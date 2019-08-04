@@ -1,0 +1,697 @@
+---
+title: "TCGA Genotypes"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+
+```{r pre-setup, include=FALSE, eval=T}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4, fig.path = 'Figures/', warning=F, message=F, comment=NA, fig.align = 'center')
+```
+
+```{r libraries, include=FALSE}
+source('code/qq-plot.R')
+suppressMessages(library(data.table))
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+theme_set(theme_bw())
+```
+
+## Metadata of TCGA Patients
+
+In this notebook, we analyze genotype data from 7000+ TCGA individuals. Much of the processing of genotype data has been done with PLINK v1.9.
+
+Affymetrix SNP6 genotype calls for ~7300 individuals across 20 tumor types were extracted from GDC legacy archive. The 20 tumor types are the ones for which Siming has SSM data for.
+
+Frequency of each tumor type is plotted below. BRCA (breast cancer) is the most frequent, followed by kidney-renal cancer.
+
+```{r tumorTypeFreq}
+metadata <- read.delim('../data/TCGA_ALL_metadata.txt', sep='\t', header=F, stringsAsFactors = F, row.names = 1)
+
+tumor.type.freq <- data.frame(table(metadata[,3]))
+colnames(tumor.type.freq) <- c('TumorType','Frequency')
+
+tumor.type.freq$TumorType <- factor(tumor.type.freq$TumorType,
+                                    levels = tumor.type.freq[order(tumor.type.freq['Frequency']),'TumorType'])
+
+
+ggplot(tumor.type.freq, aes(x=TumorType, y=Frequency, fill=TumorType)) + 
+  geom_bar(stat = 'identity') + 
+  xlab('Tumor Type') + ylab('Frequency') + 
+  theme(legend.position = 'none', 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=14)) +
+  coord_flip() 
+```
+
+Demographics of TCGA patients
+
+```{r demo}
+demos <- metadata[,6]
+demos[demos == 'american indian or alaska native'] <- 'Native Indian'
+demos[demos == 'native hawaiian or other pacific islander'] <- 'Pacific Islander'
+demos[demos == 'black or african american'] <- 'African American'
+demos[demos == 'white'] <- 'European'
+demos[demos == 'asian'] <- 'East Asian'
+demos[is.na(demos)] <- 'not reported'
+metadata[,6] <- demos
+
+demo.freq <- data.frame(table(demos))
+colnames(demo.freq) <- c('Population','Frequency')
+
+demo.freq$Population <- factor(demo.freq$Population,
+                               levels = demo.freq[order(demo.freq['Frequency']),'Population'])
+
+ggplot(demo.freq, aes(x=Population, y=Frequency, fill=Population)) + 
+  geom_bar(stat = 'identity') + 
+  xlab('Population') + ylab('Frequency') + 
+  theme(legend.position = 'none', 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=16)) +
+  scale_fill_manual(values=c('orange','black','blue','red','purple','green')) +
+  coord_flip() 
+```
+
+
+## Population Structure
+
+After loading data into PLINK, individuals with less than 95% genotype call-rate were removed to remove low quality samples. Negative strand SNPs were flipped to positive strand.
+
+PCA was performed on 162k LD-pruned SNPs obtained with the `--indep-pairwise 50 5 0.2` flag in PLINK. PC1 seperates European/Asian from African-descent, while PC2 seperates Asian from European/African.
+
+Note that Europeans exhibit population sub-structure. Individuals in the magenta box are retained for downstream analyses.
+
+```{r pca}
+pca.results <- read.delim('../data/plink.eigenvec', 
+                          sep = "", 
+                          header = F,
+                          stringsAsFactors = F) 
+
+pca.results['Population'] <- metadata[pca.results$V2, 6]
+
+ggplot(pca.results, aes(x=V3, y=V4, color=Population)) + 
+  geom_point(na.rm = T, alpha=0.4) + 
+  xlab('PC 1') + ylab('PC 2') +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=16)) + 
+  scale_color_manual(values=c('red','blue','green','black','purple','orange')) +
+  annotate("rect", xmin=0, xmax=0.007, ymin=-0.006 , ymax=0.005, alpha=0, color='magenta') +
+  guides(colour = guide_legend(override.aes = list(alpha = 1)))
+```
+
+
+## Sex-based filtering
+
+The heterozygosity of the X-chromosome was obtained using Plink's `--check-sex`. 389 individuals had discodant sex and were removed.
+
+## SNP-based filtering
+
+SNPs were removed if:
+
+* MAF < 0.05
+* Genotype Call-rate < 95%
+* HWE test p < 1e-5
+* Conflicting strand
+* in chrX or chrY
+
+Final dataset with QC retained 4336 individuals, and 631,944 SNPs. 
+
+## Imputation
+
+The Michigan imputation server was used for imputation with the 1000 Genomes Phase 3 reference panel. For each chromosome, PLINK was used to output a VCF file. Eagle was used for phasing and Minimac3 was used for imputation. Minimac3 returns GT (genotypes), DS (dosage), and GP (genotype posterior probabilities) as well as a $R^2$ imputation accuracy. Indels were discarded leaving only SNPs. All imputated SNPs $R^2 < 0.3$ were discarded and the remaining SNPs were annotated with the 1000 Genomes Phase 3 VCF file.
+
+Filtered and annotated VCF files were loaded into plink via `plink --vcf chr22.vcf.gz --vcf-min-gp 0.9 --make-bed --out chr22`. The `--vcf-min-gp` is the minimum genotype posterior probability that a hard-called genotype must fulfill, which was used in [Shi et al](https://www.karger.com/Article/FullText/489758) to assess imputation accuracy. Genotypes are set to missing otherwise.
+
+Further filtering:
+
+* Individuals with genotype call-rate > 95% were kept
+* SNPs with genotype call-rate > 90% were kept
+* SNPs with MAF > 5% were kept
+
+Final imputed dataset contained **4318** and **~3.2M** SNPs
+
+Validate Allele frequencies with 1000 Genomes MAF.
+
+```{r maf, fig.width=5, fig.height=4}
+
+maf_ref <- read.delim('../data/rand20k_1000g_filt.txt',
+                      sep='\t',
+                      header=F,
+                      stringsAsFactors = F,
+                      row.names = 1)
+maf_ref[maf_ref$V2>0.5,'V2'] = 1 - maf_ref$V2[maf_ref$V2>0.5]
+
+#large file, fread is faster
+imputed_maf <- data.frame(fread('../data/imputed_freq.frq',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+common <- intersect(row.names(maf_ref), row.names(imputed_maf))
+maf.df <- data.frame(maf1000G=maf_ref[common,'V2'],
+                     mafTCGA=imputed_maf[common, 'MAF'])
+
+ggplot(maf.df, aes(x=maf1000G,y=mafTCGA)) + 
+  geom_point(alpha=0.1, color='blue') + 
+  xlab('MAF (1000 G)') + ylab('MAF (Imputed TCGA)') + 
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=16)) +
+  geom_smooth(method='lm',color='red')
+
+```
+
+## Associations
+
+### Null case/control for QC
+
+NULL case/control. Samples were partitioned into two random groups for QC purposes. Plink's `--logistic` was used to generate p-values.
+
+```{r, nullLogistic}
+random.logis <- data.frame(fread('../data/Random_Associations.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+p1 <- ggplot(random.logis, aes(x=P)) + geom_histogram(bins=100, color='black') + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(random.logis$P)
+
+grid.arrange(p1, p2, ncol=2, top='Random/NULL Partition')
+```
+
+Association testing between BRCA vs non-BRCA. 
+
+```{r, brcaLogistic}
+brca.logis <- data.frame(fread('../data/BRCA_Associations.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+p1 <- ggplot(brca.logis, aes(x=P)) + geom_histogram(bins=100, color='black') + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(brca.logis$P)
+
+grid.arrange(p1, p2, ncol=2, top='BRCA Origin of Tumor')
+```
+
+### Testing driver gene - germline asssociations
+
+```{r, TP53}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.TP53.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black') + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(gene.logis$P)
+
+grid.arrange(p1, p2, ncol=2, top='TP53')
+```
+
+```{r, ARID1A}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.ARID1A.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='ARID1A')
+```
+
+```{r, ARID2}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.ARID2.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='ARID2')
+```
+
+```{r, ATM}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.ATM.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='ATM')
+```
+
+
+```{r, BAP1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.BAP1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='BAP1')
+```
+
+
+```{r, BRAF}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.BRAF.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='BRAF')
+```
+
+
+```{r, CASP8}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CASP8.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CASP8')
+```
+
+
+
+```{r, CDH1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CDH1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CDH1')
+```
+
+
+```{r, CDKN2A}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CDKN2A.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CDKN2A')
+```
+
+
+```{r, CHD4}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CHD4.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CHD4')
+```
+
+
+```{r, CTCF}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CTCF.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CTCF')
+```
+
+
+```{r, CTNNB1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.CTNNB1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='CTNNB1')
+```
+
+```{r, EGFR}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.EGFR.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='EGFR')
+```
+
+```{r, EP300}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.EP300.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='EP300')
+```
+
+
+```{r, ERBB2}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.ERBB2.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='ERBB2')
+```
+
+```{r, ERBB3}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.ERBB3.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='ERBB3')
+```
+
+
+```{r, FBXW7}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.FBXW7.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='FBXW7')
+```
+
+
+```{r, FGFR2}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.FGFR2.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='FGFR2')
+```
+
+```{r, IDH1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.IDH1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='IDH1')
+```
+
+
+```{r, KEAP1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.KEAP1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='KEAP1')
+```
+
+
+```{r, KRAS}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.KRAS.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='KRAS')
+```
+
+
+```{r, MAP3K1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.MAP3K1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='MAP3K1')
+```
+
+
+```{r, MTOR}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.MTOR.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='MTOR')
+```
+
+
+```{r, NCOR1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NCOR1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NCOR1')
+```
+
+
+```{r, NF1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NF1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NF1')
+```
+
+```{r, NFE2L2}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NFE2L2.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NFE2L2')
+```
+
+```{r, NOTCH1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NOTCH1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NOTCH1')
+```
+
+```{r, NRAS}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NRAS.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NRAS')
+```
+
+```{r, NSD1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.NSD1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='NSD1')
+```
+
+
+```{r, PBRM1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.PBRM1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='PBRM1')
+```
+
+
+```{r, PIK3CA}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.PIK3CA.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='PIK3CA')
+```
+
+```{r, PIK3R1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.PIK3R1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='PIK3R1')
+```
+
+
+```{r, PPP6C}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.PPP6C.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='PPP6C')
+```
+
+```{r, PTEN}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.PTEN.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='PTEN')
+```
+
+```{r, RAC1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.RAC1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='RAC1')
+```
+
+```{r, RB1}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.RB1.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='RB1')
+```
+
+```{r, SETD2}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.SETD2.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='SETD2')
+```
+
+```{r, SMAD4}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.SMAD4.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='SMAD4')
+```
+
+```{r, SPOP}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.SPOP.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='SPOP')
+```
+
+```{r, VHL}
+gene.logis <- data.frame(fread('../data/germline-somatic/plink.VHL.assoc.logistic.gz',sep=" ", showProgress = F, verbose = F), row.names = 2)
+
+P <- gene.logis$P
+P <- P[!is.na(P)]
+
+p1 <- ggplot(gene.logis, aes(x=P)) + geom_histogram(bins=100, color='black', na.rm = T) + xlab('P-value') + ylab('Frequency')
+p2 <- qqunif.plot(P)
+
+grid.arrange(p1, p2, ncol=2, top='VHL')
+```
+
+
+
+

@@ -1,0 +1,7 @@
+name: "Cancer-Germline"
+output_dir: "."
+navbar:
+  title: "Cancer-Germline"
+  left:
+    - text: "Home"
+      href: index.html

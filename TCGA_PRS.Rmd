@@ -1,0 +1,40 @@
+---
+title: "TCGA PRS"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+```{r pre-setup, include=FALSE, eval=T}
+knitr::opts_chunk$set(fig.width = 6, fig.height = 4, fig.path = 'Figures/', warning=F, message=F, comment=NA, fig.align = 'center')
+```
+
+```{r libraries, include=FALSE}
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(ggsignif))
+theme_set(theme_bw())
+```
+
+## BRCA PRS
+
+I obtained ~1100 SNPs from [Nasim et al](https://www.cell.com/ajhg/fulltext/S0002-9297(18)30405-1#tbl1) which are related to breast cancer. From the paper: "the dataset used for development of the PRSs comprised 94,075 breast cancer-affected case subjects and 75,017 control subjects of European ancestry from 69 studies in the BCAC". Using Plink's `--score` function, I calculated the PRS using ~1100 SNPs for TCGA patients. As shown below, PRS is significantly higher in BRCA than in non-BRCA. 
+
+```{r brca.prs}
+brca.prs <- read.delim('../data/BRCA_PRS.profile', sep="", header=T)
+
+brca.prs[brca.prs$FID=='TCGA-BRCA','type'] = 'BRCA'
+brca.prs[brca.prs$FID!='TCGA-BRCA','type'] = 'Other'
+
+ggplot(brca.prs, aes(x=type,y=SCORE, color=type)) + geom_boxplot() + 
+  xlab('Tumor Type') + ylab('PRS') + 
+  geom_signif(comparisons = list(c("BRCA", "Other")), 
+              map_signif_level=TRUE, color='black',tip_length = 0.1, y_position = 0.0006, test = 't.test') +   
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=16), legend.position = 'none')
+```
+
