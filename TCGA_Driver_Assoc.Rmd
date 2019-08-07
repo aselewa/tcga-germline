@@ -1,0 +1,72 @@
+---
+title: "Germline Associations with Cancer Driver Genes"
+output: 
+  html_document:
+    code_folding: hide
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+
+```{r pre-setup, include=FALSE, eval=T}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4, warning=F, message=F, comment=NA, fig.align = 'center')
+```
+
+```{r libraries, include=FALSE}
+source('_code/qq-plot.R')
+suppressMessages(library(data.table))
+suppressMessages(library(ggplot2))
+suppressMessages(library(gridExtra))
+theme_set(theme_bw())
+```
+
+## Somatic Mutation Data
+
+Somatic Mutations for TCGA individuals were obtained via `firehose_get`. The mutational status of each driver gene (obtained by Siming) was determined for all TCGA individuals. Driver genes with less than **50** individuals AFFECTED (10% of total samples) were dropped from association analysis.
+ 
+```{r, ssm_data, fig.width=7, fig.height=6}
+
+ssm.data <- read.delim('../data/SSM_phenotypes_pooled.txt',sep=' ',header=T)
+
+ssm.data.aff <- colMeans(ssm.data[,-c(1,2)]==2)
+
+ssm.df <- data.frame(frac_aff = ssm.data.aff, 
+                     genes = factor(names(ssm.data.aff),
+                                    levels=names(sort(ssm.data.aff)))
+)
+
+ggplot(ssm.df, aes(x=genes, y=frac_aff, fill=genes)) + geom_bar(stat='identity') +
+  ylab('Fraction of Tumors Mutated') + xlab('Driver Genes') + 
+  theme(legend.position = 'none', 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        text = element_text(size=14),axis.text.y = element_text(size=5)) +
+   coord_flip()
+```
+
+
+## Associations (Post-imputation)
+
+
+```{r, assocs}
+
+files <- dir(path = '../data/associations/', pattern = 'plink.*.assoc.fisher.gz')
+
+for(f in files){
+  
+  gene.name <- strsplit(f, split = '[.]')[[1]][2]
+  
+  curr <- data.frame(fread(paste0('../data/germline-somatic/',f), sep=' ', header=T, showProgress = F, verbose = F))
+  
+  p1 <- ggplot(curr, aes(x=P)) + geom_histogram(bins=30, color='black') + xlab('P-value') + ylab('Frequency')
+  p2 <- qqunif.plot(curr$P)
+  
+  grid.arrange(p1, p2, ncol=2, top=gene.name)
+  
+}
+
+```
+
+
+

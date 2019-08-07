@@ -8,6 +8,8 @@ output:
 
 This is the research page for the cancer-germline project.
 
-* [TCGA QC, Imputation, and Driver Gene Associations](TCGA_Analysis.html) (08/04/19)
+* [TCGA Exploratory & Imputation](TCGA_Analysis.html) (08/04/19)
+
+* [Driver Gene Associations](TCGA_Driver_Assoc.html) (08/05/19)
 
 * [Application of Polygenic Risk Score](TCGA_PRS.html) (08/06/19)
