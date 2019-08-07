@@ -1,4 +1,5 @@
 name: "Cancer-Germline"
+output_dir: "docs/"
 navbar:
   title: "Cancer-Germline"
   left:
