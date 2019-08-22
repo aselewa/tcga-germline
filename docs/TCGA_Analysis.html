@@ -7,6 +7,7 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 
@@ -73,9 +74,7 @@ h6 {
 </style>
 
 
-</head>
 
-<body>
 
 <style type = "text/css">
 .main-container {
@@ -194,8 +193,6 @@ $(document).ready(function () {
 });
 </script>
 
-<div class="container-fluid main-container">
-
 <!-- tabsets -->
 
 <style type="text/css">
@@ -252,56 +249,12 @@ $(document).ready(function () {
 }
 </style>
 
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-</script>
-
 <!-- code folding -->
 <style type="text/css">
 .code-folding-btn { margin-bottom: 4px; }
 </style>
-<script>
-$(document).ready(function () {
-  window.initializeCodeFolding("hide" === "show");
-});
-</script>
 
 
-
-<script>
-$(document).ready(function ()  {
-
-    // move toc-ignore selectors from section div to header
-    $('div.section.toc-ignore')
-        .removeClass('toc-ignore')
-        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
-
-    // establish options
-    var options = {
-      selectors: "h1,h2,h3",
-      theme: "bootstrap3",
-      context: '.toc-content',
-      hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
-      },
-      ignoreSelector: ".toc-ignore",
-      scrollTo: 0
-    };
-    options.showAndHide = true;
-    options.smoothScroll = true;
-
-    // tocify
-    var toc = $("#TOC").tocify(options).data("toc-tocify");
-});
-</script>
 
 <style type="text/css">
 
@@ -350,8 +303,6 @@ div.tocify {
 
 .tocify-subheader .tocify-item {
   font-size: 0.90em;
-  padding-left: 25px;
-  text-indent: 0;
 }
 
 .tocify .list-group-item {
@@ -360,6 +311,16 @@ div.tocify {
 
 
 </style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
 
 <!-- setup 3col/9col grid for toc_float and main content  -->
 <div class="row-fluid">
@@ -415,12 +376,15 @@ div.tocify {
 
 <div id="metadata-of-tcga-patients" class="section level2">
 <h2>Metadata of TCGA Patients</h2>
-<p>In this notebook, we analyze genotype data from 7000+ TCGA individuals. Much of the processing of genotype data has been done with PLINK v1.9.</p>
-<p>Affymetrix SNP6 genotype calls for ~7300 individuals across 20 tumor types were extracted from GDC legacy archive. The 20 tumor types are the ones for which Siming has SSM data for.</p>
+<p>In this notebook, we analyze genotype data from 7k+ TCGA individuals. Much of the processing of genotype data has been done with PLINK v1.9.</p>
+<p>Affymetrix SNP6 genotype calls for 7000 individuals across 22 tumor types were extracted from GDC legacy archive.</p>
 <p>Frequency of each tumor type is plotted below. BRCA (breast cancer) is the most frequent, followed by kidney-renal cancer.</p>
-<pre class="r"><code>metadata &lt;- read.delim(&#39;../data/TCGA_ALL_metadata.txt&#39;, sep=&#39;\t&#39;, header=F, stringsAsFactors = F, row.names = 1)
+<pre class="r"><code>metadata &lt;- read.delim(&#39;../data/TCGA_ALL_metadata.txt&#39;, 
+                       sep=&#39;\t&#39;, 
+                       header=F, 
+                       stringsAsFactors = F)
 
-tumor.type.freq &lt;- data.frame(table(metadata[,3]))
+tumor.type.freq &lt;- data.frame(table(metadata[,4]))
 colnames(tumor.type.freq) &lt;- c(&#39;TumorType&#39;,&#39;Frequency&#39;)
 
 tumor.type.freq$TumorType &lt;- factor(tumor.type.freq$TumorType,
@@ -434,17 +398,17 @@ ggplot(tumor.type.freq, aes(x=TumorType, y=Frequency, fill=TumorType)) +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=14)) +
-  coord_flip() </code></pre>
-<p><img src="TCGA_Analysis_files/figure-html/tumorTypeFreq-1.png" width="480" style="display: block; margin: auto;" /></p>
+  coord_flip()</code></pre>
+<p><img src="TCGA_Analysis_files/figure-html/tumorTypeFreq-1.png" width="768" style="display: block; margin: auto;" /></p>
 <p>Demographics of TCGA patients</p>
-<pre class="r"><code>demos &lt;- metadata[,6]
+<pre class="r"><code>demos &lt;- metadata[,7]
 demos[demos == &#39;american indian or alaska native&#39;] &lt;- &#39;Native Indian&#39;
 demos[demos == &#39;native hawaiian or other pacific islander&#39;] &lt;- &#39;Pacific Islander&#39;
 demos[demos == &#39;black or african american&#39;] &lt;- &#39;African American&#39;
 demos[demos == &#39;white&#39;] &lt;- &#39;European&#39;
 demos[demos == &#39;asian&#39;] &lt;- &#39;East Asian&#39;
 demos[is.na(demos)] &lt;- &#39;not reported&#39;
-metadata[,6] &lt;- demos
+metadata[,7] &lt;- demos
 
 demo.freq &lt;- data.frame(table(demos))
 colnames(demo.freq) &lt;- c(&#39;Population&#39;,&#39;Frequency&#39;)
@@ -459,101 +423,63 @@ ggplot(demo.freq, aes(x=Population, y=Frequency, fill=Population)) +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16)) +
-  scale_fill_manual(values=c(&#39;orange&#39;,&#39;black&#39;,&#39;blue&#39;,&#39;red&#39;,&#39;purple&#39;,&#39;green&#39;)) +
   coord_flip() </code></pre>
-<p><img src="TCGA_Analysis_files/figure-html/demo-1.png" width="480" style="display: block; margin: auto;" /></p>
+<p><img src="TCGA_Analysis_files/figure-html/demo-1.png" width="768" style="display: block; margin: auto;" /></p>
+</div>
+<div id="data-qc" class="section level2">
+<h2>Data QC</h2>
+<p>Data is loaded into PLINK via the following command. PED/MAP files are loaded into PLINK and the individuals sex information is also added. The command <code>--set-hh-missing</code> sets any heterozygous haploid SNPs to be set to missing as they are likely genotyping errors (i.e. male X chromosome SNPs). I also flipped any SNPs on the negative strand.</p>
+<pre><code>plink --ped TCGA_ALL.ped
+      --map snp6_metadata/snp6_mapfile.map 
+      --update-sex ../sex_info.txt 
+      --set-hh-missing 
+      --missing-genotype N 
+      --flip snp6_metadata/NegStrandSNPs.txt
+      --make-bed--out TCGA_all</code></pre>
+<p>Next, we filter non-European samples, MAF &lt; 5%, SNP call rate &lt; 95%, and individual genotyping rate &lt; 95%. We also perform a sex check between inferred sex and reported sex.</p>
+<pre><code>plink --bfile TCGA_all
+      --maf 0.05
+      --geno 0.05
+      --mind 0.05
+      --check-sex
+      --make-bed --out TCGA_Euro_s1</code></pre>
+<p>Next, I remove individuals with inconsistent sex, drop XY chromosomes, and drop SNPs that fail HWE test.</p>
+<pre><code>plink --bfile TCGA_Euro_s1 
+      --remove sex_problem_samples.txt 
+      --exclude snp6_metadata/XY_SnpIDs.txt 
+      --hwe 1e-5 
+      --make-bed --out TCGA_Euro_QC</code></pre>
 </div>
 <div id="population-structure" class="section level2">
 <h2>Population Structure</h2>
-<p>After loading data into PLINK, individuals with less than 95% genotype call-rate were removed to remove low quality samples. Negative strand SNPs were flipped to positive strand.</p>
-<p>PCA was performed on 162k LD-pruned SNPs obtained with the <code>--indep-pairwise 50 5 0.2</code> flag in PLINK. PC1 seperates European/Asian from African-descent, while PC2 seperates Asian from European/African.</p>
-<p>Note that Europeans exhibit population sub-structure. Individuals in the magenta box are retained for downstream analyses.</p>
-<pre class="r"><code>pca.results &lt;- read.delim(&#39;../data/plink.eigenvec&#39;, 
-                          sep = &quot;&quot;, 
-                          header = F,
-                          stringsAsFactors = F) 
+<p>HapMap3 genotype data in PLINK format were downloaded and merged with the TCGA genotype data.</p>
+<p>PCA was performed on ~98057 LD-pruned SNPs obtained with the <code>--indep-pairwise 50 2 0.05</code> flag in PLINK.</p>
+<p>Individuals that cluster closely with European populations (CEU, YSI) were kept as indicated by the red box.</p>
+<pre class="r"><code>pcs &lt;- read.delim(&#39;../data/hapmap_merged_pca.txt&#39;,sep=&#39;&#39;, stringsAsFactors = F, header=F)
+meta &lt;- read.delim(&#39;../data/relationships_w_pops_121708.txt&#39;,header=T, stringsAsFactors = F)
 
-pca.results[&#39;Population&#39;] &lt;- metadata[pca.results$V2, 6]
+pcs$pop &lt;- meta[match(pcs$V2, meta$IID),&#39;population&#39;]
+pcs[grepl(&#39;TCGA-&#39;, pcs$V2),&#39;pop&#39;] &lt;- &#39;TCGA Patients&#39;
 
-ggplot(pca.results, aes(x=V3, y=V4, color=Population)) + 
-  geom_point(na.rm = T, alpha=0.4) + 
-  xlab(&#39;PC 1&#39;) + ylab(&#39;PC 2&#39;) +
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) + 
-  scale_color_manual(values=c(&#39;red&#39;,&#39;blue&#39;,&#39;green&#39;,&#39;black&#39;,&#39;purple&#39;,&#39;orange&#39;)) +
-  annotate(&quot;rect&quot;, xmin=0, xmax=0.007, ymin=-0.006 , ymax=0.005, alpha=0, color=&#39;magenta&#39;) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1)))</code></pre>
+tcga_df &lt;- pcs[pcs$pop==&#39;TCGA Patients&#39;,c(&#39;V3&#39;, &#39;V4&#39;, &#39;pop&#39;)]
+hapmap_df &lt;- pcs[pcs$pop!=&#39;TCGA Patients&#39;,c(&#39;V3&#39;, &#39;V4&#39;, &#39;pop&#39;)]
+
+hapmap_df[&#39;Population&#39;] &lt;- hapmap_df$pop
+hapmap_df[hapmap_df$pop==&#39;CEU&#39; | hapmap_df$pop==&#39;TSI&#39;,&#39;Population&#39;] &lt;- &#39;European&#39; 
+hapmap_df[hapmap_df$pop==&#39;ASW&#39; | hapmap_df$pop==&#39;YRI&#39; | hapmap_df$pop==&#39;LWK&#39; | hapmap_df$pop==&#39;MKK&#39;,&#39;Population&#39;] &lt;- &#39;African&#39;
+hapmap_df[hapmap_df$pop==&#39;GIH&#39; | hapmap_df$pop==&#39;MEX&#39;,&#39;Population&#39;] &lt;- &#39;Indian/Mexican&#39;
+hapmap_df[hapmap_df$pop==&#39;CHB&#39; | hapmap_df$pop==&#39;CHD&#39; | hapmap_df$pop==&#39;JPT&#39;,&#39;Population&#39;] &lt;- &#39;Asian&#39;
+
+
+ggplot() +
+  geom_point(data=tcga_df, aes(x=V3, y=V4, color=pop), alpha=0.5) + 
+  geom_point(data=hapmap_df, aes(x=V3, y=V4, color=Population), alpha=0.5, size=2) + 
+  xlab(&#39;PC 1&#39;) + ylab(&#39;PC 2&#39;) + 
+  annotate(&quot;rect&quot;, xmin=-0.005, xmax=0.007, ymin=-0.005, ymax=0.005, alpha=0, color=&#39;red&#39;,size=1) +
+  theme(text=element_text(size = 18), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.title = element_blank()) +
+  scale_color_manual(values=c(&#39;coral&#39;,&#39;blue&#39;,&#39;green&#39;,&#39;purple&#39;,&#39;black&#39;))</code></pre>
 <p><img src="TCGA_Analysis_files/figure-html/pca-1.png" width="768" style="display: block; margin: auto;" /></p>
-</div>
-<div id="sex-based-filtering" class="section level2">
-<h2>Sex-based filtering</h2>
-<p>The heterozygosity of the X-chromosome was obtained using Plink’s <code>--check-sex</code>. 389 individuals had discodant sex and were removed.</p>
-</div>
-<div id="snp-based-filtering" class="section level2">
-<h2>SNP-based filtering</h2>
-<p>SNPs were removed if:</p>
-<ul>
-<li>MAF &lt; 0.05</li>
-<li>Genotype Call-rate &lt; 95%</li>
-<li>HWE test p &lt; 1e-5</li>
-<li>Conflicting strand</li>
-<li>in chrX or chrY</li>
-</ul>
-<p>Final dataset with QC retained 4336 individuals, and 631,944 SNPs.</p>
-</div>
-<div id="imputation" class="section level2">
-<h2>Imputation</h2>
-<p>The Michigan imputation server was used for imputation with the 1000 Genomes Phase 3 reference panel. For each chromosome, PLINK was used to output a VCF file. Eagle was used for phasing and Minimac3 was used for imputation. Minimac3 returns GT (genotypes), DS (dosage), and GP (genotype posterior probabilities) as well as a <span class="math inline">\(R^2\)</span> imputation accuracy. Indels were discarded leaving only SNPs. All imputated SNPs <span class="math inline">\(R^2 &lt; 0.3\)</span> were discarded and the remaining SNPs were annotated with the 1000 Genomes Phase 3 VCF file.</p>
-<p>Filtered and annotated VCF files were loaded into plink via <code>plink2 --vcf chr22.vcf.gz dosage=GP --hard-call-threshold 0.499 --import-dosage-uncertainty 0.5 --id-delim '_' --snps-only --make-bed --out chr22</code>. The <code>--hard-threshold-call</code> sets the maximum distance that the allele dosage can be from the nearest hard-call (too stringent by default). The <code>--import-dosage-uncertainty</code> paramter sets the lower-bound on the genotype posterior probability, where uncertain calls are set to missing.</p>
-<p>Individual bed files are merged into a single bed file.</p>
-<p>I have plotted the genotype posterior probability for chr22 below.</p>
-<pre class="r"><code>gp &lt;- read.delim(&#39;../data/chr22_GP_field_400k.txt&#39;,sep=&#39;\t&#39;,header=F)
-
-max.gp &lt;- gp %&gt;% mutate(max=pmax(V1, V2, V3))
-max.gp.filt &lt;- max.gp[max.gp$max&lt;1,]
-
-ggplot(max.gp, aes(x=max)) + geom_histogram(bins=50, color=&#39;black&#39;) + 
-  xlab(&#39;Genotype Posterior Probability&#39;) + ylab(&#39;Counts&#39;) +
-  ggtitle(&#39;chr22&#39;) + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) +
-  scale_y_log10(breaks = trans_breaks(&quot;log10&quot;, function(x) 10^x),
-              labels = trans_format(&quot;log10&quot;, math_format(10^.x))) +
-  scale_x_continuous(breaks=seq(0,1,0.1)) + 
-  annotation_logticks(sides=&quot;l&quot;)</code></pre>
-<p><img src="TCGA_Analysis_files/figure-html/genotype_posterior-1.png" width="480" style="display: block; margin: auto;" /></p>
-<p>Further filtering:</p>
-<ul>
-<li>Individuals with genotype call-rate &gt; 95% were kept</li>
-<li>SNPs with genotype call-rate &gt; 95% were kept</li>
-<li>SNPs with MAF &gt; 1% were kept</li>
-</ul>
-<p>Final imputed dataset contained <strong>4336</strong> individuals and <strong>~8M</strong> SNPs</p>
-<p>A random sub-set of 20k SNPs genome-wide were randomly choosing and their MAF computed and compared with the 1000 Genomes European MAF.</p>
-<pre class="r"><code>maf_ref &lt;- read.delim(&#39;../data/rand20k_1000g_filt.txt&#39;,
-                      sep=&#39;\t&#39;,
-                      header=F,
-                      stringsAsFactors = F,
-                      row.names = 1)
-maf_ref[maf_ref$V2&gt;0.5,&#39;V2&#39;] = 1 - maf_ref$V2[maf_ref$V2&gt;0.5]
-
-#large file, fread is faster
-imputed_maf &lt;- data.frame(fread(&#39;../data/imputed_freq.frq&#39;,sep=&quot; &quot;, showProgress = F, verbose = F), row.names = 2)
-
-common &lt;- intersect(row.names(maf_ref), row.names(imputed_maf))
-maf.df &lt;- data.frame(maf1000G=maf_ref[common,&#39;V2&#39;],
-                     mafTCGA=imputed_maf[common, &#39;MAF&#39;])
-
-ggplot(maf.df, aes(x=maf1000G,y=mafTCGA)) + 
-  geom_point(alpha=0.1, color=&#39;blue&#39;) + 
-  xlab(&#39;MAF (1000 G)&#39;) + ylab(&#39;MAF (Imputed TCGA)&#39;) + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) +
-  geom_smooth(method=&#39;lm&#39;,color=&#39;red&#39;)</code></pre>
-<p><img src="TCGA_Analysis_files/figure-html/maf-1.png" width="480" style="display: block; margin: auto;" /></p>
 </div>
 
 
@@ -574,6 +500,54 @@ $(document).ready(function () {
 });
 
 
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
 </script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->

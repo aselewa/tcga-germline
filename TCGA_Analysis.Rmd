@@ -8,32 +8,44 @@ output:
     theme: flatly
 ---
 
-
 ```{r pre-setup, include=FALSE, eval=T}
-knitr::opts_chunk$set(fig.width = 5, fig.height = 4, warning=F, message=F, comment=NA, fig.align = 'center')
+
+knitr::opts_chunk$set(fig.width = 8, 
+                      fig.height = 6,
+                      warning=F, 
+                      message=F, 
+                      comment=NA, 
+                      fig.align = 'center')
+
 ```
 
 ```{r libraries, include=FALSE}
+
 suppressMessages(library(data.table))
 suppressMessages(library(dplyr))
 suppressMessages(library(ggplot2))
 suppressMessages(library(gridExtra))
 suppressMessages(library(scales))
 theme_set(theme_bw())
+
 ```
 
 ## Metadata of TCGA Patients
 
-In this notebook, we analyze genotype data from 7000+ TCGA individuals. Much of the processing of genotype data has been done with PLINK v1.9.
+In this notebook, we analyze genotype data from 7k+ TCGA individuals. Much of the processing of genotype data has been done with PLINK v1.9.
 
-Affymetrix SNP6 genotype calls for ~7300 individuals across 20 tumor types were extracted from GDC legacy archive. The 20 tumor types are the ones for which Siming has SSM data for.
+Affymetrix SNP6 genotype calls for 7000 individuals across 22 tumor types were extracted from GDC legacy archive. 
 
 Frequency of each tumor type is plotted below. BRCA (breast cancer) is the most frequent, followed by kidney-renal cancer.
 
 ```{r tumorTypeFreq}
-metadata <- read.delim('../data/TCGA_ALL_metadata.txt', sep='\t', header=F, stringsAsFactors = F, row.names = 1)
 
-tumor.type.freq <- data.frame(table(metadata[,3]))
+metadata <- read.delim('../data/TCGA_ALL_metadata.txt', 
+                       sep='\t', 
+                       header=F, 
+                       stringsAsFactors = F)
+
+tumor.type.freq <- data.frame(table(metadata[,4]))
 colnames(tumor.type.freq) <- c('TumorType','Frequency')
 
 tumor.type.freq$TumorType <- factor(tumor.type.freq$TumorType,
@@ -47,20 +59,22 @@ ggplot(tumor.type.freq, aes(x=TumorType, y=Frequency, fill=TumorType)) +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=14)) +
-  coord_flip() 
+  coord_flip()
+
 ```
 
 Demographics of TCGA patients
 
 ```{r demo}
-demos <- metadata[,6]
+
+demos <- metadata[,7]
 demos[demos == 'american indian or alaska native'] <- 'Native Indian'
 demos[demos == 'native hawaiian or other pacific islander'] <- 'Pacific Islander'
 demos[demos == 'black or african american'] <- 'African American'
 demos[demos == 'white'] <- 'European'
 demos[demos == 'asian'] <- 'East Asian'
 demos[is.na(demos)] <- 'not reported'
-metadata[,6] <- demos
+metadata[,7] <- demos
 
 demo.freq <- data.frame(table(demos))
 colnames(demo.freq) <- c('Population','Frequency')
@@ -75,122 +89,83 @@ ggplot(demo.freq, aes(x=Population, y=Frequency, fill=Population)) +
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16)) +
-  scale_fill_manual(values=c('orange','black','blue','red','purple','green')) +
   coord_flip() 
+
+```
+
+
+## Data QC
+
+Data is loaded into PLINK via the following command. PED/MAP files are loaded into PLINK and the individuals sex information is also added. The command `--set-hh-missing` sets any heterozygous haploid SNPs to be set to missing as they are likely genotyping errors (i.e. male X chromosome SNPs). I also flipped any SNPs on the negative strand.
+
+```
+plink --ped TCGA_ALL.ped
+      --map snp6_metadata/snp6_mapfile.map 
+      --update-sex ../sex_info.txt 
+      --set-hh-missing 
+      --missing-genotype N 
+      --flip snp6_metadata/NegStrandSNPs.txt
+      --make-bed--out TCGA_all
+```
+
+Next, we filter non-European samples, MAF < 5%, SNP call rate < 95%, and individual genotyping rate < 95%. We also perform a sex check between inferred sex and reported sex.
+
+```
+plink --bfile TCGA_all
+      --maf 0.05
+      --geno 0.05
+      --mind 0.05
+      --check-sex
+      --make-bed --out TCGA_Euro_s1
+```
+
+Next, I remove individuals with inconsistent sex, drop XY chromosomes, and drop SNPs that fail HWE test.
+
+```
+plink --bfile TCGA_Euro_s1 
+      --remove sex_problem_samples.txt 
+      --exclude snp6_metadata/XY_SnpIDs.txt 
+      --hwe 1e-5 
+      --make-bed --out TCGA_Euro_QC
 ```
 
 
 ## Population Structure
 
-After loading data into PLINK, individuals with less than 95% genotype call-rate were removed to remove low quality samples. Negative strand SNPs were flipped to positive strand.
+HapMap3 genotype data in PLINK format were downloaded and merged with the TCGA genotype data.
 
-PCA was performed on 162k LD-pruned SNPs obtained with the `--indep-pairwise 50 5 0.2` flag in PLINK. PC1 seperates European/Asian from African-descent, while PC2 seperates Asian from European/African.
+PCA was performed on ~98057 LD-pruned SNPs obtained with the `--indep-pairwise 50 2 0.05` flag in PLINK.
 
-Note that Europeans exhibit population sub-structure. Individuals in the magenta box are retained for downstream analyses.
+Individuals that cluster closely with European populations (CEU, YSI) were kept as indicated by the red box.
 
-```{r pca, fig.width=8}
-pca.results <- read.delim('../data/plink.eigenvec', 
-                          sep = "", 
-                          header = F,
-                          stringsAsFactors = F) 
+```{r pca}
 
-pca.results['Population'] <- metadata[pca.results$V2, 6]
+pcs <- read.delim('../data/hapmap_merged_pca.txt',sep='', stringsAsFactors = F, header=F)
+meta <- read.delim('../data/relationships_w_pops_121708.txt',header=T, stringsAsFactors = F)
 
-ggplot(pca.results, aes(x=V3, y=V4, color=Population)) + 
-  geom_point(na.rm = T, alpha=0.4) + 
-  xlab('PC 1') + ylab('PC 2') +
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) + 
-  scale_color_manual(values=c('red','blue','green','black','purple','orange')) +
-  annotate("rect", xmin=0, xmax=0.007, ymin=-0.006 , ymax=0.005, alpha=0, color='magenta') +
-  guides(colour = guide_legend(override.aes = list(alpha = 1)))
-```
+pcs$pop <- meta[match(pcs$V2, meta$IID),'population']
+pcs[grepl('TCGA-', pcs$V2),'pop'] <- 'TCGA Patients'
+
+tcga_df <- pcs[pcs$pop=='TCGA Patients',c('V3', 'V4', 'pop')]
+hapmap_df <- pcs[pcs$pop!='TCGA Patients',c('V3', 'V4', 'pop')]
+
+hapmap_df['Population'] <- hapmap_df$pop
+hapmap_df[hapmap_df$pop=='CEU' | hapmap_df$pop=='TSI','Population'] <- 'European' 
+hapmap_df[hapmap_df$pop=='ASW' | hapmap_df$pop=='YRI' | hapmap_df$pop=='LWK' | hapmap_df$pop=='MKK','Population'] <- 'African'
+hapmap_df[hapmap_df$pop=='GIH' | hapmap_df$pop=='MEX','Population'] <- 'Indian/Mexican'
+hapmap_df[hapmap_df$pop=='CHB' | hapmap_df$pop=='CHD' | hapmap_df$pop=='JPT','Population'] <- 'Asian'
 
 
-## Sex-based filtering
-
-The heterozygosity of the X-chromosome was obtained using Plink's `--check-sex`. 389 individuals had discodant sex and were removed.
-
-## SNP-based filtering
-
-SNPs were removed if:
-
-* MAF < 0.05
-* Genotype Call-rate < 95%
-* HWE test p < 1e-5
-* Conflicting strand
-* in chrX or chrY
-
-Final dataset with QC retained 4336 individuals, and 631,944 SNPs. 
-
-## Imputation
-
-The Michigan imputation server was used for imputation with the 1000 Genomes Phase 3 reference panel. For each chromosome, PLINK was used to output a VCF file. Eagle was used for phasing and Minimac3 was used for imputation. Minimac3 returns GT (genotypes), DS (dosage), and GP (genotype posterior probabilities) as well as a $R^2$ imputation accuracy. Indels were discarded leaving only SNPs. All imputated SNPs $R^2 < 0.3$ were discarded and the remaining SNPs were annotated with the 1000 Genomes Phase 3 VCF file.
-
-Filtered and annotated VCF files were loaded into plink via `plink2 --vcf chr22.vcf.gz dosage=GP --hard-call-threshold 0.499 --import-dosage-uncertainty 0.5 --id-delim '_' --snps-only --make-bed --out chr22`. The `--hard-threshold-call` sets the maximum distance that the allele dosage can be from the nearest hard-call (too stringent by default). The `--import-dosage-uncertainty` paramter sets the lower-bound on the genotype posterior probability, where uncertain calls are set to missing.
-
-Individual bed files are merged into a single bed file.
-
-I have plotted the genotype posterior probability for chr22 below. 
-
-```{r, genotype_posterior, fig.width=5, fig.height=4}
-
-
-gp <- read.delim('../data/chr22_GP_field_400k.txt',sep='\t',header=F)
-
-max.gp <- gp %>% mutate(max=pmax(V1, V2, V3))
-max.gp.filt <- max.gp[max.gp$max<1,]
-
-ggplot(max.gp, aes(x=max)) + geom_histogram(bins=50, color='black') + 
-  xlab('Genotype Posterior Probability') + ylab('Counts') +
-  ggtitle('chr22') + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) +
-  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),
-              labels = trans_format("log10", math_format(10^.x))) +
-  scale_x_continuous(breaks=seq(0,1,0.1)) + 
-  annotation_logticks(sides="l")
-```
-
-
-Further filtering:
-
-* Individuals with genotype call-rate > 95% were kept
-* SNPs with genotype call-rate > 95% were kept
-* SNPs with MAF > 1% were kept
-
-Final imputed dataset contained **4336** individuals and **~8M** SNPs
-
-A random sub-set of 20k SNPs genome-wide were randomly choosing and their MAF computed and compared with the 1000 Genomes European MAF.
-
-```{r maf, fig.width=5, fig.height=4}
-
-maf_ref <- read.delim('../data/rand20k_1000g_filt.txt',
-                      sep='\t',
-                      header=F,
-                      stringsAsFactors = F,
-                      row.names = 1)
-maf_ref[maf_ref$V2>0.5,'V2'] = 1 - maf_ref$V2[maf_ref$V2>0.5]
-
-#large file, fread is faster
-imputed_maf <- data.frame(fread('../data/imputed_freq.frq',sep=" ", showProgress = F, verbose = F), row.names = 2)
-
-common <- intersect(row.names(maf_ref), row.names(imputed_maf))
-maf.df <- data.frame(maf1000G=maf_ref[common,'V2'],
-                     mafTCGA=imputed_maf[common, 'MAF'])
-
-ggplot(maf.df, aes(x=maf1000G,y=mafTCGA)) + 
-  geom_point(alpha=0.1, color='blue') + 
-  xlab('MAF (1000 G)') + ylab('MAF (Imputed TCGA)') + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16)) +
-  geom_smooth(method='lm',color='red')
+ggplot() +
+  geom_point(data=tcga_df, aes(x=V3, y=V4, color=pop), alpha=0.5) + 
+  geom_point(data=hapmap_df, aes(x=V3, y=V4, color=Population), alpha=0.5, size=2) + 
+  xlab('PC 1') + ylab('PC 2') + 
+  annotate("rect", xmin=-0.005, xmax=0.007, ymin=-0.005, ymax=0.005, alpha=0, color='red',size=1) +
+  theme(text=element_text(size = 18), panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        legend.title = element_blank()) +
+  scale_color_manual(values=c('coral','blue','green','purple','black'))
 
 ```
-
 
 
 

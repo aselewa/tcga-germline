@@ -7,6 +7,7 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 
@@ -73,9 +74,7 @@ h6 {
 </style>
 
 
-</head>
 
-<body>
 
 <style type = "text/css">
 .main-container {
@@ -194,8 +193,6 @@ $(document).ready(function () {
 });
 </script>
 
-<div class="container-fluid main-container">
-
 <!-- tabsets -->
 
 <style type="text/css">
@@ -252,56 +249,12 @@ $(document).ready(function () {
 }
 </style>
 
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-</script>
-
 <!-- code folding -->
 <style type="text/css">
 .code-folding-btn { margin-bottom: 4px; }
 </style>
-<script>
-$(document).ready(function () {
-  window.initializeCodeFolding("hide" === "show");
-});
-</script>
 
 
-
-<script>
-$(document).ready(function ()  {
-
-    // move toc-ignore selectors from section div to header
-    $('div.section.toc-ignore')
-        .removeClass('toc-ignore')
-        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
-
-    // establish options
-    var options = {
-      selectors: "h1,h2,h3",
-      theme: "bootstrap3",
-      context: '.toc-content',
-      hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
-      },
-      ignoreSelector: ".toc-ignore",
-      scrollTo: 0
-    };
-    options.showAndHide = true;
-    options.smoothScroll = true;
-
-    // tocify
-    var toc = $("#TOC").tocify(options).data("toc-tocify");
-});
-</script>
 
 <style type="text/css">
 
@@ -350,8 +303,6 @@ div.tocify {
 
 .tocify-subheader .tocify-item {
   font-size: 0.90em;
-  padding-left: 25px;
-  text-indent: 0;
 }
 
 .tocify .list-group-item {
@@ -360,6 +311,16 @@ div.tocify {
 
 
 </style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
 
 <!-- setup 3col/9col grid for toc_float and main content  -->
 <div class="row-fluid">
@@ -415,57 +376,30 @@ div.tocify {
 
 <div id="building-prs-in-tcga-data" class="section level2">
 <h2>Building PRS in TCGA Data</h2>
-<p>To build PRS, we use SNPs published in literature as discussed below. We use Plink’s <code>--score</code> to compute the per-sample PRS.</p>
+<p>To build PRS, we use SNPs published in literature as discussed below. We use PRSice to compute the per-sample PRS.</p>
 <p>Here, I focus on Breast Cancer PRS, because we can validate the outcome by comparing to non-BRCA tumor types.</p>
-<p>A set of 77 SNPs associated with BRCA were obtained from <a href="https://www.ncbi.nlm.nih.gov/pubmed/25855707?dopt=Abstract">Mavaddat et al.</a>. The distribution of PRS is shown below.</p>
-<pre class="r"><code>brca.prs &lt;- read.delim(&#39;../data/N77.profile&#39;, sep=&quot;&quot;, header=T)
-
-brca.prs[brca.prs$FID==&#39;TCGA-BRCA&#39;,&#39;type&#39;] = &#39;BRCA&#39;
-brca.prs[brca.prs$FID!=&#39;TCGA-BRCA&#39;,&#39;type&#39;] = &#39;Other&#39;
-
-brca.prs$SCORE &lt;- brca.prs$SCORE*1e3
-
-p1 &lt;- ggplot(brca.prs, aes(x=type,y=SCORE, color=type)) + geom_boxplot() + 
-  xlab(&#39;Tumor Type&#39;) + ylab(expression(PRS%*%10^`-3`)) + 
-  geom_signif(comparisons = list(c(&quot;BRCA&quot;, &quot;Other&quot;)),
-              map_signif_level=TRUE, color=&#39;black&#39;,tip_length = 0.1, y_position = 18, test = &#39;t.test&#39;) +
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16), legend.position = &#39;none&#39;)
-
-p2 &lt;- ggplot(brca.prs, aes(x=SCORE, fill=type)) + geom_density(alpha=0.2) + 
-  xlab(expression(PRS%*%10^`-3`)) + ylab(&#39;Frequency&#39;) + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16), legend.position = &#39;none&#39;)
-
-grid.arrange(p1, p2, ncol=2, top=&#39;77 Published SNPs&#39;)</code></pre>
-<p><img src="TCGA_PRS_files/figure-html/brca.prs-1.png" width="576" style="display: block; margin: auto;" /></p>
 <p>I obtained a second set of 3820 SNPs from <a href="https://www.ncbi.nlm.nih.gov/pubmed/30554720">Mavadatt et al</a> which were associated with BRCA. These SNPs were inferred via Lasso. From the paper: “the dataset used for development of the PRSs comprised 94,075 breast cancer-affected case subjects and 75,017 control subjects of European ancestry from 69 studies in the BCAC”. As shown below, PRS is significantly higher in BRCA than in non-BRCA. This PRS is also better seperated from non-BRCA compared to the set of 77 SNPs above.</p>
 <pre class="r"><code>brca.prs &lt;- read.delim(&#39;../data/Lasso_PRS.profile&#39;, sep=&quot;&quot;, header=T)
 
 brca.prs[brca.prs$FID==&#39;TCGA-BRCA&#39;,&#39;type&#39;] = &#39;BRCA&#39;
 brca.prs[brca.prs$FID!=&#39;TCGA-BRCA&#39;,&#39;type&#39;] = &#39;Other&#39;
 
-brca.prs$SCORE &lt;- brca.prs$SCORE*1e3
-
 p1 &lt;- ggplot(brca.prs, aes(x=type,y=SCORE, color=type)) + geom_boxplot() + 
-  xlab(&#39;Tumor Type&#39;) + ylab(expression(PRS%*%10^`-3`)) + 
+  xlab(&#39;Tumor Type&#39;) + ylab(expression(PRS)) + 
   geom_signif(comparisons = list(c(&quot;BRCA&quot;, &quot;Other&quot;)),
-              map_signif_level=TRUE, color=&#39;black&#39;,tip_length = 0.1, y_position = 0.25, test = &#39;t.test&#39;) +
+              map_signif_level=TRUE, color=&#39;black&#39;,tip_length = 0.1, y_position = 3e-4, test = &#39;t.test&#39;) +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16), legend.position = &#39;none&#39;)
-
 
 p2 &lt;- ggplot(brca.prs, aes(x=SCORE, fill=type)) + geom_density(alpha=0.2) + 
-  xlab(expression(PRS%*%10^`-3`)) + ylab(&#39;Frequency&#39;) + 
+  xlab(expression(PRS)) + ylab(&#39;Frequency&#39;) + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16), legend.position = &#39;none&#39;)
 
-grid.arrange(p1, p2, ncol=2, top=&#39;3820 SNPs from Lasso&#39;)</code></pre>
-<p><img src="TCGA_PRS_files/figure-html/brca.prs.lasso-1.png" width="576" style="display: block; margin: auto;" /></p>
+grid.arrange(p1, p2, ncol=2, top=&#39;77 Published SNPs&#39;)</code></pre>
+<p><img src="TCGA_PRS_files/figure-html/brca.prs-1.png" width="576" style="display: block; margin: auto;" /></p>
 </div>
 
 
@@ -486,6 +420,54 @@ $(document).ready(function () {
 });
 
 
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
 </script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->

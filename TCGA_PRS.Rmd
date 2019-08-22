@@ -22,66 +22,33 @@ theme_set(theme_bw())
 
 ## Building PRS in TCGA Data
 
-To build PRS, we use SNPs published in literature as discussed below. We use Plink's `--score` to compute the per-sample PRS.
+To build PRS, we use SNPs published in literature as discussed below. We use PRSice to compute the per-sample PRS.
 
 Here, I focus on Breast Cancer PRS, because we can validate the outcome by comparing to non-BRCA tumor types.
 
-A set of 77 SNPs associated with BRCA were obtained from [Mavaddat et al.](https://www.ncbi.nlm.nih.gov/pubmed/25855707?dopt=Abstract). The distribution of PRS is shown below.
+I obtained a second set of 3820 SNPs from [Mavadatt et al](https://www.ncbi.nlm.nih.gov/pubmed/30554720) which were associated with BRCA. These SNPs were inferred via Lasso. From the paper: "the dataset used for development of the PRSs comprised 94,075 breast cancer-affected case subjects and 75,017 control subjects of European ancestry from 69 studies in the BCAC". As shown below, PRS is significantly higher in BRCA than in non-BRCA. This PRS is also better seperated from non-BRCA compared to the set of 77 SNPs above. 
+
 
 ```{r brca.prs}
-brca.prs <- read.delim('../data/N77.profile', sep="", header=T)
+brca.prs <- read.delim('../data/Lasso_PRS.profile', sep="", header=T)
 
 brca.prs[brca.prs$FID=='TCGA-BRCA','type'] = 'BRCA'
 brca.prs[brca.prs$FID!='TCGA-BRCA','type'] = 'Other'
 
-brca.prs$SCORE <- brca.prs$SCORE*1e3
-
 p1 <- ggplot(brca.prs, aes(x=type,y=SCORE, color=type)) + geom_boxplot() + 
-  xlab('Tumor Type') + ylab(expression(PRS%*%10^`-3`)) + 
+  xlab('Tumor Type') + ylab(expression(PRS)) + 
   geom_signif(comparisons = list(c("BRCA", "Other")),
-              map_signif_level=TRUE, color='black',tip_length = 0.1, y_position = 18, test = 't.test') +
+              map_signif_level=TRUE, color='black',tip_length = 0.1, y_position = 3e-4, test = 't.test') +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16), legend.position = 'none')
 
 p2 <- ggplot(brca.prs, aes(x=SCORE, fill=type)) + geom_density(alpha=0.2) + 
-  xlab(expression(PRS%*%10^`-3`)) + ylab('Frequency') + 
+  xlab(expression(PRS)) + ylab('Frequency') + 
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(),
         text = element_text(size=16), legend.position = 'none')
 
 grid.arrange(p1, p2, ncol=2, top='77 Published SNPs')
 ```
-
-I obtained a second set of 3820 SNPs from [Mavadatt et al](https://www.ncbi.nlm.nih.gov/pubmed/30554720) which were associated with BRCA. These SNPs were inferred via Lasso. From the paper: "the dataset used for development of the PRSs comprised 94,075 breast cancer-affected case subjects and 75,017 control subjects of European ancestry from 69 studies in the BCAC". As shown below, PRS is significantly higher in BRCA than in non-BRCA. This PRS is also better seperated from non-BRCA compared to the set of 77 SNPs above. 
-
-
-```{r brca.prs.lasso}
-brca.prs <- read.delim('../data/Lasso_PRS.profile', sep="", header=T)
-
-brca.prs[brca.prs$FID=='TCGA-BRCA','type'] = 'BRCA'
-brca.prs[brca.prs$FID!='TCGA-BRCA','type'] = 'Other'
-
-brca.prs$SCORE <- brca.prs$SCORE*1e3
-
-p1 <- ggplot(brca.prs, aes(x=type,y=SCORE, color=type)) + geom_boxplot() + 
-  xlab('Tumor Type') + ylab(expression(PRS%*%10^`-3`)) + 
-  geom_signif(comparisons = list(c("BRCA", "Other")),
-              map_signif_level=TRUE, color='black',tip_length = 0.1, y_position = 0.25, test = 't.test') +
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16), legend.position = 'none')
-
-
-p2 <- ggplot(brca.prs, aes(x=SCORE, fill=type)) + geom_density(alpha=0.2) + 
-  xlab(expression(PRS%*%10^`-3`)) + ylab('Frequency') + 
-  theme(panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=16), legend.position = 'none')
-
-grid.arrange(p1, p2, ncol=2, top='3820 SNPs from Lasso')
-```
-
-
-
 

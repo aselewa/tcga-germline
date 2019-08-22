@@ -19,11 +19,16 @@ project_id = []
 gender = []
 age = []
 race = []
+caseIDs = []
+
 for i in json_file:
     fnames.append(i['file_id'])
 
     ids.append(i['associated_entities'][0]['entity_submitter_id'])
+    caseIDs.append(i['associated_entities'][0]['case_id'])
+
     project_id.append(i['cases'][0]['project']['project_id'])
+
 
     if 'demographic' in i['cases'][0].keys():
         gender.append(i['cases'][0]['demographic']['gender'])
@@ -54,7 +59,8 @@ age = np.array(age)[keep]
 fnames = np.array(fnames)[keep]
 project_id = np.array(project_id)[keep]
 race = np.array(race)[keep]
+caseIDs = np.array(caseIDs)[keep]
 
-age_mat = np.column_stack((ids, fnames, project_id, age, gender, race)) 
+age_mat = np.column_stack((ids, fnames, project_id, caseIDs, age, gender, race)) 
 np.savetxt(outName,age_mat,delimiter="\t", fmt="%s")
 

@@ -1,5 +1,5 @@
 name: "Cancer-Germline"
-output_dir: "docs/"
+output_dir: "docs"
 navbar:
   title: "Cancer-Germline"
   left:

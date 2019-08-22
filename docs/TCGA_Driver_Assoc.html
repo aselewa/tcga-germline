@@ -7,11 +7,12 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
 
 
-<title>Germline Associations with Cancer Driver Genes</title>
+<title>Germline Associations</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -73,9 +74,7 @@ h6 {
 </style>
 
 
-</head>
 
-<body>
 
 <style type = "text/css">
 .main-container {
@@ -194,8 +193,6 @@ $(document).ready(function () {
 });
 </script>
 
-<div class="container-fluid main-container">
-
 <!-- tabsets -->
 
 <style type="text/css">
@@ -252,56 +249,12 @@ $(document).ready(function () {
 }
 </style>
 
-<script>
-$(document).ready(function () {
-  window.buildTabsets("TOC");
-});
-
-$(document).ready(function () {
-  $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
-  });
-});
-</script>
-
 <!-- code folding -->
 <style type="text/css">
 .code-folding-btn { margin-bottom: 4px; }
 </style>
-<script>
-$(document).ready(function () {
-  window.initializeCodeFolding("hide" === "show");
-});
-</script>
 
 
-
-<script>
-$(document).ready(function ()  {
-
-    // move toc-ignore selectors from section div to header
-    $('div.section.toc-ignore')
-        .removeClass('toc-ignore')
-        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
-
-    // establish options
-    var options = {
-      selectors: "h1,h2,h3",
-      theme: "bootstrap3",
-      context: '.toc-content',
-      hashGenerator: function (text) {
-        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
-      },
-      ignoreSelector: ".toc-ignore",
-      scrollTo: 0
-    };
-    options.showAndHide = true;
-    options.smoothScroll = true;
-
-    // tocify
-    var toc = $("#TOC").tocify(options).data("toc-tocify");
-});
-</script>
 
 <style type="text/css">
 
@@ -350,8 +303,6 @@ div.tocify {
 
 .tocify-subheader .tocify-item {
   font-size: 0.90em;
-  padding-left: 25px;
-  text-indent: 0;
 }
 
 .tocify .list-group-item {
@@ -360,6 +311,16 @@ div.tocify {
 
 
 </style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
 
 <!-- setup 3col/9col grid for toc_float and main content  -->
 <div class="row-fluid">
@@ -408,49 +369,210 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">Germline Associations with Cancer Driver Genes</h1>
+<h1 class="title toc-ignore">Germline Associations</h1>
 
 </div>
 
 
-<div id="somatic-mutation-data" class="section level2">
-<h2>Somatic Mutation Data</h2>
-<p>Somatic Mutations for TCGA individuals were obtained via <code>firehose_get</code>. The mutational status of each driver gene (obtained by Siming) was determined for all TCGA individuals. Driver genes with less than <strong>50</strong> individuals AFFECTED (10% of total samples) were dropped from association analysis.</p>
-<pre class="r"><code>ssm.data &lt;- read.delim(&#39;../data/SSM_phenotypes_pooled.txt&#39;,sep=&#39; &#39;,header=T)
+<div id="reproducing-carter-et-al" class="section level2">
+<h2>Reproducing Carter et al</h2>
+<p>Two-sided Fisher’s Exact Test was ran on all SNPs for a binary phenotype which represents the presence/absence of the mutation. In this table, I compare with key findings from Carter et al.</p>
+<pre class="r"><code>compare.df &lt;- read.delim(&#39;../data/CompareCarter.txt&#39;,sep=&#39;\t&#39;,header=T)
 
-ssm.data.aff &lt;- colMeans(ssm.data[,-c(1,2)]==2)
-
-ssm.df &lt;- data.frame(frac_aff = ssm.data.aff, 
-                     genes = factor(names(ssm.data.aff),
-                                    levels=names(sort(ssm.data.aff)))
-)
-
-ggplot(ssm.df, aes(x=genes, y=frac_aff, fill=genes)) + geom_bar(stat=&#39;identity&#39;) +
-  ylab(&#39;Fraction of Tumors Mutated&#39;) + xlab(&#39;Driver Genes&#39;) + 
-  theme(legend.position = &#39;none&#39;, 
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(),
-        text = element_text(size=14),axis.text.y = element_text(size=5)) +
-   coord_flip()</code></pre>
-<p><img src="TCGA_Driver_Assoc_files/figure-html/ssm_data-1.png" width="672" style="display: block; margin: auto;" /></p>
+print(kable(compare.df, caption = &quot;Comparison with Carter et al&quot;, digits = 20) %&gt;% kable_styling() %&gt;% scroll_box(width = &quot;100%&quot;, height = &quot;400px&quot;))</code></pre>
+<div style="border: 1px solid #ddd; padding: 0px; overflow-y: scroll; height:400px; overflow-x: scroll; width:100%; ">
+<table class="table" style="margin-left: auto; margin-right: auto;">
+<caption>
+Comparison with Carter et al
+</caption>
+<thead>
+<tr>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Gene
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+Alteration
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+SNP
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+P_Carter
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+OR_Carter
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+P
+</th>
+<th style="text-align:right;position: sticky; top:0; background-color: #FFFFFF;">
+OR
+</th>
+<th style="text-align:left;position: sticky; top:0; background-color: #FFFFFF;">
+OR_CI
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+BRAF
+</td>
+<td style="text-align:left;">
+mutation
+</td>
+<td style="text-align:left;">
+rs7530636
+</td>
+<td style="text-align:right;">
+8.00e-10
+</td>
+<td style="text-align:right;">
+1.90
+</td>
+<td style="text-align:right;">
+3.930e-09
+</td>
+<td style="text-align:right;">
+1.870
+</td>
+<td style="text-align:left;">
+[1.50, 2.25]
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+BRAF
+</td>
+<td style="text-align:left;">
+cnv or mutation
+</td>
+<td style="text-align:left;">
+rs7530636
+</td>
+<td style="text-align:right;">
+4.43e-09
+</td>
+<td style="text-align:right;">
+1.76
+</td>
+<td style="text-align:right;">
+6.791e-08
+</td>
+<td style="text-align:right;">
+1.736
+</td>
+<td style="text-align:left;">
+[1.42, 2.11]
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+CREBBP
+</td>
+<td style="text-align:left;">
+cnv or mutation
+</td>
+<td style="text-align:left;">
+rs1523873
+</td>
+<td style="text-align:right;">
+6.21e-08
+</td>
+<td style="text-align:right;">
+1.81
+</td>
+<td style="text-align:right;">
+7.100e-04
+</td>
+<td style="text-align:right;">
+1.644
+</td>
+<td style="text-align:left;">
+[1.24, 2.2]
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+FLT3
+</td>
+<td style="text-align:left;">
+mutation
+</td>
+<td style="text-align:left;">
+rs10225559
+</td>
+<td style="text-align:right;">
+2.78e-08
+</td>
+<td style="text-align:right;">
+0.31
+</td>
+<td style="text-align:right;">
+9.426e-05
+</td>
+<td style="text-align:right;">
+0.310
+</td>
+<td style="text-align:left;">
+[0.16, 0.60]
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+PDGFRA
+</td>
+<td style="text-align:left;">
+cnv
+</td>
+<td style="text-align:left;">
+rs689867
+</td>
+<td style="text-align:right;">
+4.89e-08
+</td>
+<td style="text-align:right;">
+0.41
+</td>
+<td style="text-align:right;">
+3.200e-04
+</td>
+<td style="text-align:right;">
+0.390
+</td>
+<td style="text-align:left;">
+[0.23, 0.67]
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+GATA3
+</td>
+<td style="text-align:left;">
+cnv
+</td>
+<td style="text-align:left;">
+rs950656
+</td>
+<td style="text-align:right;">
+3.73e-08
+</td>
+<td style="text-align:right;">
+4.10
+</td>
+<td style="text-align:right;">
+9.600e-04
+</td>
+<td style="text-align:right;">
+4.460
+</td>
+<td style="text-align:left;">
+[2.08, 9.586]
+</td>
+</tr>
+</tbody>
+</table>
 </div>
-<div id="associations-post-imputation" class="section level2">
-<h2>Associations (Post-imputation)</h2>
-<pre class="r"><code>files &lt;- dir(path = &#39;../data/associations/&#39;, pattern = &#39;plink.*.assoc.fisher.gz&#39;)
-
-for(f in files){
-  
-  gene.name &lt;- strsplit(f, split = &#39;[.]&#39;)[[1]][2]
-  
-  curr &lt;- data.frame(fread(paste0(&#39;../data/germline-somatic/&#39;,f), sep=&#39; &#39;, header=T, showProgress = F, verbose = F))
-  
-  p1 &lt;- ggplot(curr, aes(x=P)) + geom_histogram(bins=30, color=&#39;black&#39;) + xlab(&#39;P-value&#39;) + ylab(&#39;Frequency&#39;)
-  p2 &lt;- qqunif.plot(curr$P)
-  
-  grid.arrange(p1, p2, ncol=2, top=gene.name)
-  
-}</code></pre>
-<p><img src="TCGA_Driver_Assoc_files/figure-html/assocs-1.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-2.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-3.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-4.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-5.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-6.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-7.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-8.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-9.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-10.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-11.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-12.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-13.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-14.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-15.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-16.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-17.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-18.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-19.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-20.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-21.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-22.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-23.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-24.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-25.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-26.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-27.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-28.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-29.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-30.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-31.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-32.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-33.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-34.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-35.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-36.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-37.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-38.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-39.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-40.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-41.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-42.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-43.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-44.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-45.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-46.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-47.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-48.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-49.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-50.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-51.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-52.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-53.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-54.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-55.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-56.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-57.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-58.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-59.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-60.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-61.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-62.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-63.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-64.png" width="768" style="display: block; margin: auto;" /><img src="TCGA_Driver_Assoc_files/figure-html/assocs-65.png" width="768" style="display: block; margin: auto;" /></p>
 </div>
 
 
@@ -471,6 +593,54 @@ $(document).ready(function () {
 });
 
 
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
 </script>
 
 <!-- dynamically load mathjax for compatibility with self-contained -->
